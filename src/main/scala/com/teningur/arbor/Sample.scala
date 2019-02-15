@@ -9,7 +9,7 @@ object Sample extends App {
 
   val plus = Plus(Plus(Ref("x"), Ref("y")), Ref("z"))
 
-  val outer = CreateClosure(Discard(Decl("x", Num(5)), CreateClosure(plus)))
+  val outer = CreateClosure(Discard(Bind("x", Num(5)), CreateClosure(plus)))
   println(Invoke(PartialApply(Invoke(outer, params""), params"z = ${"x"}"), params"y = ${3}").s.runA(global).value)
 
   """

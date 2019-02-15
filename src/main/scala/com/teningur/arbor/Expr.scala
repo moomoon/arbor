@@ -17,18 +17,24 @@ sealed case class Closure(expr: Expr, env: Env) extends Val {
   } yield v
 }
 
-case class Invoke(c: Expr, a: ParamList) extends Expr {
+case class Invoke(c: Expr, a: Map[String, Expr]) extends Expr {
   override def s: ExprS = for {
     closure@Closure(_, _) ← c.s
-    args@Arguments(_) ← a.s
+
+    args ← a.foldLeft[Env State Seq[(String, Val)]](State.pure(Seq.empty)) {
+      case (s, (label, expr)) ⇒ for {
+        m ← s
+        v ← expr.s
+      } yield m :+ (label → v)
+    } map (Env.args(_: _*))
     restore ← State.get[Env]
-    _ ← State.set[Env](args.env)
+    _ ← State.set[Env](args)
     v ← closure.cs
     _ ← State.set(restore)
   } yield v
 }
 
-case class Decl(label: String, expr: Expr) extends Expr {
+case class Bind(label: String, expr: Expr) extends Expr {
   override def s: ExprS = for {
     r ← expr.s
     _ ← State.modify[Env](_ + Env.vals(label → r))
@@ -36,7 +42,7 @@ case class Decl(label: String, expr: Expr) extends Expr {
 }
 
 object PartialApply {
-  def apply(expr: Expr, a: ParamList): Expr = {
+  def apply(expr: Expr, a: Map[String, Expr]): Expr = {
     Invoke(CreateClosure(expr), a)
   }
 }
@@ -87,22 +93,3 @@ case class Bool(b: Boolean) extends Val
 case object AUnit extends Val
 
 class Arr() extends Val
-
-case class ParamList(params: Map[String, Expr]) extends Expr {
-
-  override def s: State[Env, Val] = params.foldLeft[Env State Map[String, Val]](State.pure(Map.empty)) {
-    case (s, (label, expr)) ⇒
-      for {
-        m ← s
-        v ← expr.s
-      } yield m + (label → v)
-  } map Arguments
-}
-
-object ParamList {
-  def apply(params: (String, Expr)*): ParamList = ParamList(Map(params: _*))
-}
-
-case class Arguments(args: Map[String, Val]) extends Val {
-  def env: TypedEnv = Env.args(args.toSeq: _*)
-}

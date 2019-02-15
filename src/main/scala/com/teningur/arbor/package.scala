@@ -31,7 +31,7 @@ package object arbor {
 
     def args(values: Any*): Env = env(Env.args, values: _*)
 
-    def params(values: Any*): ParamList = ParamList(stringContext.parts.zip(values).map {
+    def params(values: Any*): Map[String, Expr] = Map(stringContext.parts.zip(values).map {
       case (label(l), Expression(expr)) ⇒ l → expr
     }: _*)
   }
