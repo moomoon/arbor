@@ -13,10 +13,7 @@ sealed trait Val extends Expr {
 sealed case class Closure(expr: Expr, env: Env) extends Val {
   def cs: ExprS = for {
     _ ← State.modify(env + _)
-    v ← expr match {
-      case c: Closure ⇒ c.cs
-      case e ⇒ e.s
-    }
+    v ← expr.s
   } yield v
 }
 
@@ -34,16 +31,14 @@ case class Invoke(c: Expr, a: ParamList) extends Expr {
 case class Decl(label: String, expr: Expr) extends Expr {
   override def s: ExprS = for {
     r ← expr.s
-    env ← State.get[Env]
-    _ ← State.set(env + Env.vals(label → r))
+    _ ← State.modify[Env](_ + Env.vals(label → r))
   } yield AUnit
 }
 
-case class PartialApply(expr: Expr, a: ParamList) extends Expr {
-  override def s: ExprS = for {
-    c@Closure(_, _) ← expr.s
-    args@Arguments(_) ← a.s
-  } yield Closure(c, args.env)
+object PartialApply {
+  def apply(expr: Expr, a: ParamList): Expr = {
+    Invoke(CreateClosure(expr), a)
+  }
 }
 
 case class CreateClosure(expr: Expr) extends Expr {
@@ -98,9 +93,9 @@ case class ParamList(params: Map[String, Expr]) extends Expr {
   override def s: State[Env, Val] = params.foldLeft[Env State Map[String, Val]](State.pure(Map.empty)) {
     case (s, (label, expr)) ⇒
       for {
-      m ← s
-      v ← expr.s
-    } yield m + (label → v)
+        m ← s
+        v ← expr.s
+      } yield m + (label → v)
   } map Arguments
 }
 
